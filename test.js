@@ -11,6 +11,7 @@ describe('fuzzy ioc', function () {
     ioc = fuzzyioc()
   });
 
+
   describe('lookup', function () {
 
     it('uses "fuzzy" lookup to satisfy dependencies by what properties are used', function () {
@@ -42,6 +43,28 @@ describe('fuzzy ioc', function () {
       var userController = ioc(UserController);
 
       userController.listUsers().should.contain('alice', 'bob');
+    });
+
+    it('looks up aliased properties (through `this`) that are used on the prototype', function () {
+
+      function SomeType (assignedDependency) {
+        this.dependency = assignedDependency;
+      };
+
+      SomeType.prototype.instanceMethod = function () {
+        return this.dependency.prototypeFunc();
+      };
+
+      function SomeOtherType () {
+        this.prototypeFunc = function () {
+          return 42;
+        };
+      }
+
+      ioc.register(SomeOtherType);
+
+      var instance = ioc(SomeType);
+      instance.instanceMethod().should.equal(42);
     });
   });
 
@@ -88,6 +111,7 @@ describe('fuzzy ioc', function () {
       usagesByDependency.argTwo.methods.should.have.length(2);
     });
 
+
     describe('nesting', function () {
 
       it('finds access of nested members of each dependency', function () {
@@ -102,6 +126,40 @@ describe('fuzzy ioc', function () {
         usagesByDependency.should.not.have.keys('nestedArg');
       });
     });
-  });
 
+
+    describe('aliased assignment to `this`', function () {
+
+      var SOURCE;
+
+      beforeEach(function () {
+
+        SOURCE = [
+          'function SomeType (assignedDependency) {',
+            'this.dependency = assignedDependency;',
+          '};',
+          'SomeType.prototype.instanceMethod = function () {',
+            'this.dependency.prototypeFunc();',
+          '};',
+          'SomeType.prototype.anotherInstanceMethod = function () {',
+            'var whatever = this.dependency.prototypeMember;',
+          '};'
+        ].join('');
+
+        usagesByDependency = ioc.parseUsages(SOURCE);
+      });
+
+      it('tracks assignment of dependencies to `this`', function () {
+        usagesByDependency.should.have.keys("assignedDependency");
+      });
+
+      it('finds accessed methods of dependency on the prototype', function () {
+        usagesByDependency.assignedDependency.methods.should.include("prototypeFunc");
+      });
+
+      it('finds accessed members of dependency on the prototype', function () {
+        usagesByDependency.assignedDependency.members.should.include("prototypeMember");
+      });
+    });
+  });
 });

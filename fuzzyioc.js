@@ -3,6 +3,8 @@ var astw = require('astw');
 
 module.exports = function () {
 
+  var types = [];
+
   var typesByProperty = { members: {}, methods: {} };
 
   /**
@@ -11,11 +13,28 @@ module.exports = function () {
    * Satisfies dependencies for types by "fuzzy" matching against registered types. If a registered type has the members and/or methods called on a dependency of Type, the registered type will be injected as the dependency.
    */
   function fuzzyioc (Type) {
+    if (!types.length) {
+      throw new Error("fuzzyioc: no types registered, try `.register(Type)`");
+    }
+
     var usages = fuzzyioc.parseUsages(Type);
     var satisfyingTypesPerDependency = satisfyUsages(usages);
 
     var dependencyNames = extractDependencyNamesFor(Type);
-    var dependencyTypes = _.map(dependencyNames, name => satisfyingTypesPerDependency[name][0]);
+
+    var dependencyTypes = _.map(dependencyNames, name => {
+      var firstSatisfyingDependency  = satisfyingTypesPerDependency[name][0]
+      if (firstSatisfyingDependency) {
+        return firstSatisfyingDependency;
+      }
+
+      var dependencyUsage = usages[name];
+      throw new Error('fuzzyioc: No registered types satisify the usage of ' +
+                      name + "\n" +
+                      'Methods called: '   + JSON.stringify(dependencyUsage.methods) + "\n" +
+                      'Members accessed: ' + JSON.stringify(dependencyUsage.members) + "\n");
+    });
+
     var dependencyInstances = _.map(dependencyTypes, Dependency => fuzzyioc(Dependency));
 
     return newInstance(Type, dependencyInstances);
@@ -25,6 +44,7 @@ module.exports = function () {
    * Registers a Type.
    */
   fuzzyioc.register = Type => {
+    types.push(Type);
 
     var properties = parseProperties(Type);
 
@@ -52,34 +72,108 @@ module.exports = function () {
     function initDependency (dep) {
       dependencies[dep] = {
         members: [],
-        methods: [] // TODO: record number of arguments in each function
+        methods: [],// TODO: record number of arguments in each function
+        aliases: []
       };
+    }
+
+    function hasDependencyTo (dep) {
+      if (dep in dependencies) {
+        return true;
+      }
+      // aliased dependencies
+      else {
+        var dependencyNames = Object.keys(dependencies);
+        return _.any(dependencyNames, name => {
+          return dependencies[name].aliases.indexOf(dep) != -1;
+        });
+      }
+    }
+
+    function getAliasedDependency (alias) {
+      var dependencyNames = Object.keys(dependencies);
+      return _.where(dependencyNames, name => {
+        return dependencies[name].aliases.indexOf(alias) != -1;
+      });
     }
 
     _.map(extractDependencyNamesFor(Type), initDependency);
 
-    _.each(parseNodes(Type), node => {
+    var nodes = parseNodes(Type);
+
+    _.each(nodes, node => {
 
       if (node.type == "MemberExpression") {
+        var dependencyNames = Object.keys(dependencies);
+
         var parent = node.parent;
         var object = node.object;
+        var property = node.property;
 
-        var isObjectIdentifier = (object.type == 'Identifier');
+        var isObjectIdentifier = (object && object.type == 'Identifier');
+
+        var isObjectThisExpression = (object && object.type == 'ThisExpression');
+        var isPropertyIdentifier = (property && property.type == 'Identifier');
+
+        // handle function local use of the dependency
         if (isObjectIdentifier) {
-
           var name = object.name;
-          var hasDependencyToName = (name in dependencies);
-          if (!hasDependencyToName) {
+          if (!hasDependencyTo(name)) {
             return;
           }
 
           var propertyOrFunctionName = node.property.name;
-          var isParentCallExpression = (parent.type == 'CallExpression');
+          var isParentCallExpression = (parent && parent.type == 'CallExpression');
           if (isParentCallExpression) {
             dependencies[name].methods.push(propertyOrFunctionName);
           }
           else {
             dependencies[name].members.push(propertyOrFunctionName);
+          }
+        }
+        else if (isObjectThisExpression && isPropertyIdentifier) {
+
+          var isParentAssignmentExpression = (parent && parent.type == 'AssignmentExpression');
+          var isParentRightIdentifier = (parent && parent.right && parent.right.type == 'Identifier');
+          if (isParentAssignmentExpression && isParentRightIdentifier) {
+            var assignedDependency = parent.right.name;
+            var aliasDependency = node.property.name;
+            dependencies[assignedDependency].aliases.push(aliasDependency);
+          }
+        }
+      }
+    });
+
+    // 2nd pass
+    _.each(nodes, node => {
+
+      if (node.type == "MemberExpression") {
+        var dependencyNames = Object.keys(dependencies);
+
+        var parent = node.parent;
+        var object = node.object;
+        var property = node.property;
+
+        var isParentMemberExpression = (parent && parent.type == 'MemberExpression');
+        var isParentPropertyIdentifier = (parent && parent.property && parent.property.type == 'Identifier');
+
+        var isParentParentCallExpression = (parent && parent.parent && parent.parent.type == 'CallExpression');
+
+        // handle calls to `this.dependency.someMethod()`
+        if (isParentMemberExpression && isParentPropertyIdentifier) {
+
+          var aliasDependency = property.name;
+          if (hasDependencyTo(aliasDependency)) {
+
+            var aliasedDependency = getAliasedDependency(aliasDependency);
+            var newMemberName = parent.property.name;
+
+            if (isParentParentCallExpression) {
+              dependencies[aliasedDependency].methods.push(newMemberName);
+            }
+            else {
+              dependencies[aliasedDependency].members.push(newMemberName);
+            }
           }
         }
       }
@@ -143,6 +237,7 @@ module.exports = function () {
   return fuzzyioc;
 };
 
+
 /**
   * Extracts members and methods available on a Type.
   */
@@ -194,8 +289,7 @@ function extractDependencyNamesFor (Type) {
 
       // falltrough
       case 'FunctionDeclaration':
-      case 'FunctionExpression':
-        return _.map(node.params, param => param.name);
+         return _.map(node.params, param => param.name);
     }
   }
 
@@ -226,9 +320,22 @@ function walkAst(stringOrType, fn) {
  * String representation of a function
  */
 function asSourceString (input) {
-  return (typeof input == 'function')
-    ? input.toString()
-    : input;
+  if (typeof input == 'string') {
+    return input;
+  }
+
+  if (typeof input == 'function') {
+    var source = input.toString();
+    var prototype = input.prototype;
+
+    for (var property in prototype) {
+      source += "%s.prototype.%s = %s;"
+                  .replace("%s", input.name)
+                  .replace("%s", property)
+                  .replace("%s", prototype[property].toString());
+    }
+    return source;
+  }
 }
 
 
@@ -237,7 +344,8 @@ function asSourceString (input) {
  */
 function newInstance (Klass, args) {
   function F () {}
-  F.prototype = Klass;
+  F.prototype = Klass.prototype;
+  // TODO set constructor
   var instance = new F();
   Klass.apply(instance, args);
   return instance;
