@@ -11,6 +11,7 @@ describe('fuzzy ioc', function () {
     ioc = fuzzyioc()
   });
 
+
   describe('lookup', function () {
 
     it('looks up dependencies by what properties are used', function () {
@@ -34,6 +35,7 @@ describe('fuzzy ioc', function () {
     });
   });
 
+
   describe('register', function () {
 
     it('registers types', function () {
@@ -42,6 +44,7 @@ describe('fuzzy ioc', function () {
       ioc.types().should.contain(Type);
     });
   });
+
 
   describe('parser', function () {
 
@@ -68,34 +71,34 @@ describe('fuzzy ioc', function () {
       dependencies.should.have.keys('argOne', 'argTwo');
     });
 
-    it('finds accessed properties of each dependency', function () {
-      dependencies.argOne.properties.should.contain('propOne');
-      dependencies.argTwo.properties.should.contain('propTwo');
+    it('finds accessed members of each dependency', function () {
+      dependencies.argOne.members.should.contain('propOne');
+      dependencies.argTwo.members.should.contain('propTwo');
     });
 
-    it('finds accessed functions of each dependency', function () {
-      dependencies.argOne.functions.should.contain('funcOne');
-      dependencies.argTwo.functions.should.contain('funcTwo');
+    it('finds accessed methods of each dependency', function () {
+      dependencies.argOne.methods.should.contain('funcOne');
+      dependencies.argTwo.methods.should.contain('funcTwo');
     });
 
-    it('finds access of nested properties of each dependency', function () {
-      dependencies.argOne.properties.should.contain('nestedProp');
+    it('finds access of nested members of each dependency', function () {
+      dependencies.argOne.members.should.contain('nestedProp');
     });
 
-    it('finds access of nested function calls of each dependency', function () {
-      dependencies.argTwo.functions.should.contain('nestedFunc');
+    it('finds access of nested methods of each dependency', function () {
+      dependencies.argTwo.methods.should.contain('nestedFunc');
     });
 
-    it('skips dependencies of nested function definitions', function () {
+    it('skips dependencies of nested method definitions', function () {
       dependencies.should.not.have.keys('nestedArg');
     });
 
-    it('skips function calls when looking up properties', function () {
-      dependencies.argTwo.properties.should.not.contain('funcTwo');
+    it('skips methods when looking up members', function () {
+      dependencies.argTwo.members.should.not.contain('funcTwo');
     });
 
-    it('skips properties when looking up function calls', function () {
-      dependencies.argOne.functions.should.not.contain('propOne');
+    it('skips members when looking up methods', function () {
+      dependencies.argOne.methods.should.not.contain('propOne');
     });
   });
 

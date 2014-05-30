@@ -58,8 +58,8 @@ module.exports = function () {
     var dependencies = {};
     function initDependency (dep) {
       dependencies[dep] = {
-        properties: [], // variable
-        functions: []   // { name, args }
+        members: [], // variable
+        methods: []   // { name, args }
       };
     }
 
@@ -84,13 +84,13 @@ module.exports = function () {
             if (!isParentFunctionCall) {
               var name = object.name;
               if (name in dependencies) {
-                dependencies[name].properties.push(node.property.name);
+                dependencies[name].members.push(node.property.name);
               }
             }
             else if (isParentFunctionCall) {
               var name = object.name;
               if (name in dependencies) {
-                dependencies[name].functions.push(node.property.name);
+                dependencies[name].methods.push(node.property.name);
               }
             }
           }
@@ -156,8 +156,8 @@ module.exports = function () {
     for (var dependency in usages) {
       var satisfierForDependency = satisfiersPerDependency[dependency];
 
-      var methods = usages[dependency].functions;
-      var members = usages[dependency].properties;
+      var methods = usages[dependency].methods;
+      var members = usages[dependency].members;
 
       var methodSatisfiers = _.flatten(_.map(methods, method => {
         return typesByProperty.methods[method];
