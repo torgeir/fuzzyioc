@@ -6,16 +6,16 @@ module.exports = function () {
   var typesByProperty = { members: {}, methods: {} };
 
   /**
-   * Fuzzy ioc container
+   * Fuzzy ioc container.
    *
-   * Satisfies dependencies for types by "fuzzy" matching against registered types. If a registered type has the requested members or methods it is considered a match.
+   * Satisfies dependencies for types by "fuzzy" matching against registered types. If a registered type has the members and/or methods called on a dependency of Type, the registered type will be injected as the dependency.
    */
   function fuzzyioc (Type) {
     var usages = fuzzyioc.parseUsages(Type);
-    var satisfiersPerDependency = satisfyUsages(usages);
+    var satisfyingTypesPerDependency = satisfyUsages(usages);
 
     var dependencyNames = extractDependencyNamesFor(Type);
-    var dependencyTypes = _.map(dependencyNames, name => satisfiersPerDependency[name][0]);
+    var dependencyTypes = _.map(dependencyNames, name => satisfyingTypesPerDependency[name][0]);
     var dependencyInstances = _.map(dependencyTypes, Dependency => fuzzyioc(Dependency));
 
     return newInstance(Type, dependencyInstances);
@@ -51,8 +51,8 @@ module.exports = function () {
 
     function initDependency (dep) {
       dependencies[dep] = {
-        members: [], // variable
-        methods: []  // { name, args }
+        members: [],
+        methods: [] // TODO: record number of arguments in each function
       };
     }
 
@@ -89,49 +89,8 @@ module.exports = function () {
   };
 
 
-
   /**
-   * Extracts members and methods available on a Type.
-   */
-  function parseProperties (Type) {
-
-    var members = [],
-        methods = [];
-
-    var sourceString = asSourceString(Type);
-    var walk = astw(sourceString);
-
-    walk(node => {
-
-      var object = node.object;
-      var parent = node.parent;
-
-      if (node.type == 'MemberExpression') {
-
-        var isThisExpression = (object.type == 'ThisExpression');
-        var isParentAssignmentExpression = (parent && parent.type == 'AssignmentExpression');
-
-        if (isThisExpression && isParentAssignmentExpression) {
-
-          var isParentRightAssignmentExpressionFunction =
-            (node.parent.right.type == 'FunctionExpression');
-
-          var name = node.property.name;
-          if (isParentRightAssignmentExpressionFunction) {
-            methods.push(name);
-          }
-          else {
-            members.push(name);
-          }
-        }
-      }
-    });
-
-    return { members, methods };
-  };
-
-  /**
-   * Provides types that satisfy the usage of each dependency.
+   * Provides the types that satisfy the usage of each dependency. Throws `Error` if no registered type match the usages.
    */
   function satisfyUsages (usages) {
 
@@ -181,51 +140,101 @@ module.exports = function () {
     return satisfiersPerDependency;
   };
 
-
-  /**
-   * Looks up a dependencies (arguments) of a FunctionDeclaration or a FunctionExpression
-   */
-  function extractDependencyNamesFor (Type) {
-    var nodes = parseNodes(Type);
-
-    for (var i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-
-      switch (node.type) {
-
-        // falltrough
-        case 'FunctionDeclaration':
-        case 'FunctionExpression':
-          return _.map(node.params, param => param.name);
-      }
-    }
-
-    throw new Error("fuzzyioc: no function expression or declaration takes dependencies for the type " + Type);
-  };
-
-  /**
-   * Parses type or string to an ast
-   */
-  function parseNodes (stringOrType) {
-    var sourceString = asSourceString(stringOrType);
-
-    var walk = astw(sourceString);
-
-    var nodes = [];
-    walk(node => nodes.push(node));
-    return nodes.reverse();
-  };
-
   return fuzzyioc;
-
 };
 
+/**
+  * Extracts members and methods available on a Type.
+  */
+function parseProperties (Type) {
+
+  var members = [],
+      methods = [];
+
+  walkAst(Type, node => {
+
+    var object = node.object;
+    var parent = node.parent;
+
+    if (node.type == 'MemberExpression') {
+
+      var isThisExpression = (object.type == 'ThisExpression');
+      var isParentAssignmentExpression = (parent && parent.type == 'AssignmentExpression');
+
+      if (isThisExpression && isParentAssignmentExpression) {
+
+        var isParentRightAssignmentExpressionFunction =
+          (node.parent.right.type == 'FunctionExpression');
+
+        var name = node.property.name;
+        if (isParentRightAssignmentExpressionFunction) {
+          methods.push(name);
+        }
+        else {
+          members.push(name);
+        }
+      }
+    }
+  });
+
+  return { members, methods };
+};
+
+
+/**
+  * Looks up a dependencies (arguments) of a FunctionDeclaration or a FunctionExpression
+  */
+function extractDependencyNamesFor (Type) {
+  var nodes = parseNodes(Type);
+
+  for (var i = 0; i < nodes.length; i++) {
+    var node = nodes[i];
+
+    switch (node.type) {
+
+      // falltrough
+      case 'FunctionDeclaration':
+      case 'FunctionExpression':
+        return _.map(node.params, param => param.name);
+    }
+  }
+
+  throw new Error("fuzzyioc: no function expression or declaration takes dependencies for the type " + Type);
+};
+
+
+/**
+  * Parses type or string to an ast
+  */
+function parseNodes (stringOrType) {
+  var nodes = [];
+  walkAst(stringOrType, node => nodes.push(node));
+  return nodes.reverse();
+};
+
+
+/**
+ * Walks the ast of a function or source string
+ */
+function walkAst(stringOrType, fn) {
+  var sourceString = asSourceString(stringOrType);
+  return astw(sourceString)(fn);
+}
+
+
+/**
+ * String representation of a function
+ */
 function asSourceString (input) {
   return (typeof input == 'function')
     ? input.toString()
     : input;
 }
 
+
+/**
+ * Returns a new instance of `Klass` with `args` applied.
+ */
 function newInstance (Klass, args) {
   function F () {}
   F.prototype = Klass;
