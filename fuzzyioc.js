@@ -3,46 +3,38 @@ var astw = require('astw');
 
 module.exports = function () {
 
-  var types = [];
-
   var typesByProperty = { members: {}, methods: {} };
 
   /**
-   * Fuzzy ioc container. Satisfies dependencies for types by ducktyping against registered types.
+   * Fuzzy ioc container
+   *
+   * Satisfies dependencies for types by "fuzzy" matching against registered types. If a registered type has the requested members or methods it is considered a match.
    */
   function fuzzyioc (Type) {
     var usages = fuzzyioc.parseUsages(Type);
     var satisfiersPerDependency = satisfyUsages(usages);
 
-    var nodes = lookupNodes(Type);
-    var dependencyNames = findDependencies(nodes, Type);
-
-    var dependencies = _.map(dependencyNames, dependency => satisfiersPerDependency[dependency][0]);
-    var dependencyInstances = _.map(dependencies, Dependency => fuzzyioc(Dependency));
+    var dependencyNames = extractDependencyNamesFor(Type);
+    var dependencyTypes = _.map(dependencyNames, name => satisfiersPerDependency[name][0]);
+    var dependencyInstances = _.map(dependencyTypes, Dependency => fuzzyioc(Dependency));
 
     return newInstance(Type, dependencyInstances);
   }
 
   /**
-   * Returns types registered with fuzzyioc.
-   */
-  fuzzyioc.types = () => types.slice();
-
-  /**
-   * Registers a Type in fuzzyioc. Indexes types by members and methods available on the Type.
+   * Registers a Type.
    */
   fuzzyioc.register = Type => {
-    types.push(Type);
 
     var properties = parseProperties(Type);
 
-    // index members
+    // index types by members
     _.each(properties.members, member => {
       var members = typesByProperty.members[member] = (typesByProperty.members[member] || []);
       members.push(Type);
     });
 
-    // index methods
+    // index types by methods
     _.each(properties.methods, method => {
       var methods = typesByProperty.methods[method] = (typesByProperty.methods[method] || []);
       methods.push(Type);
@@ -51,50 +43,45 @@ module.exports = function () {
 
 
   /**
-   * Finds member accesses and method calls for a given Type
+   * Finds member access and method calls (usages) for a given Type.
    */
   fuzzyioc.parseUsages = Type => {
 
     var dependencies = {};
+
     function initDependency (dep) {
       dependencies[dep] = {
         members: [], // variable
-        methods: []   // { name, args }
+        methods: []  // { name, args }
       };
     }
 
-    var nodes = lookupNodes(Type);
+    _.map(extractDependencyNamesFor(Type), initDependency);
 
-    _.map(findDependencies(nodes, Type), initDependency);
+    _.each(parseNodes(Type), node => {
 
-    _.each(nodes, node => {
+      if (node.type == "MemberExpression") {
+        var parent = node.parent;
+        var object = node.object;
 
-      switch (node.type) {
+        var isObjectIdentifier = (object.type == 'Identifier');
+        if (isObjectIdentifier) {
 
-        case 'MemberExpression':
-          var parent = node.parent;
-          var object = node.object;
-
-          var isIdentifier = (object.type == 'Identifier');
-
-          if (isIdentifier) {
-
-            var isParentFunctionCall = (parent.type == 'CallExpression');
-
-            if (!isParentFunctionCall) {
-              var name = object.name;
-              if (name in dependencies) {
-                dependencies[name].members.push(node.property.name);
-              }
-            }
-            else if (isParentFunctionCall) {
-              var name = object.name;
-              if (name in dependencies) {
-                dependencies[name].methods.push(node.property.name);
-              }
-            }
+          var name = object.name;
+          var hasDependencyToName = (name in dependencies);
+          if (!hasDependencyToName) {
+            return;
           }
-        break;
+
+          var propertyOrFunctionName = node.property.name;
+          var isParentCallExpression = (parent.type == 'CallExpression');
+          if (isParentCallExpression) {
+            dependencies[name].methods.push(propertyOrFunctionName);
+          }
+          else {
+            dependencies[name].members.push(propertyOrFunctionName);
+          }
+        }
       }
     });
 
@@ -198,7 +185,9 @@ module.exports = function () {
   /**
    * Looks up a dependencies (arguments) of a FunctionDeclaration or a FunctionExpression
    */
-  function findDependencies (nodes, Type) {
+  function extractDependencyNamesFor (Type) {
+    var nodes = parseNodes(Type);
+
     for (var i = 0; i < nodes.length; i++) {
       var node = nodes[i];
 
@@ -217,7 +206,7 @@ module.exports = function () {
   /**
    * Parses type or string to an ast
    */
-  function lookupNodes (stringOrType) {
+  function parseNodes (stringOrType) {
     var sourceString = asSourceString(stringOrType);
 
     var walk = astw(sourceString);

@@ -11,37 +11,37 @@ describe('fuzzy ioc', function () {
     ioc = fuzzyioc()
   });
 
-
   describe('lookup', function () {
 
-    it('looks up dependencies by what properties are used', function () {
+    it('uses "fuzzy" lookup to satisfy dependencies by what properties are used', function () {
 
-      function Messages () {
-        this.keys = { 'service.loading': 'Loading new data..' };
-        this.lookup = function (key) {
-          return this.keys[key];
+      function UserRepo () {
+
+        this.allUsers = function () {
+          return ['alice', 'bob'];
         };
       }
 
-      function Service (something) {
-        this.loadingMessage = something.lookup('service.loading');
+      function UserService (repo) {
+
+        this.findAllUsers = function () {
+          return repo.allUsers();
+        };
       }
 
-      ioc.register(Messages);
+      function UserController (service) {
 
-      var serviceInstance = ioc(Service);
+        this.listUsers = function () {
+          return service.findAllUsers();
+        };
+      }
 
-      serviceInstance.loadingMessage.should.equal('Loading new data..');
-    });
-  });
+      ioc.register(UserRepo);
+      ioc.register(UserService);
 
+      var userController = ioc(UserController);
 
-  describe('register', function () {
-
-    it('registers types', function () {
-      function Type () { }
-      ioc.register(Type);
-      ioc.types().should.contain(Type);
+      userController.listUsers().should.contain('alice', 'bob');
     });
   });
 
@@ -62,43 +62,45 @@ describe('fuzzy ioc', function () {
       };
     };
 
-    var dependencies;
+    var usagesByDependency;
+
     beforeEach(function () {
-      dependencies = ioc.parseUsages(SOURCE);
+      usagesByDependency = ioc.parseUsages(SOURCE);
     });
 
     it('finds names of dependencies', function () {
-      dependencies.should.have.keys('argOne', 'argTwo');
+      usagesByDependency.should.have.keys('argOne', 'argTwo');
     });
 
     it('finds accessed members of each dependency', function () {
-      dependencies.argOne.members.should.contain('propOne');
-      dependencies.argTwo.members.should.contain('propTwo');
+      usagesByDependency.argOne.members.should.include('propOne');
+      usagesByDependency.argOne.members.should.have.length(2);
+
+      usagesByDependency.argTwo.members.should.include('propTwo');
+      usagesByDependency.argTwo.members.should.have.length(1);
     });
 
     it('finds accessed methods of each dependency', function () {
-      dependencies.argOne.methods.should.contain('funcOne');
-      dependencies.argTwo.methods.should.contain('funcTwo');
+      usagesByDependency.argOne.methods.should.include('funcOne');
+      usagesByDependency.argOne.methods.should.have.length(1);
+
+      usagesByDependency.argTwo.methods.should.include('funcTwo');
+      usagesByDependency.argTwo.methods.should.have.length(2);
     });
 
-    it('finds access of nested members of each dependency', function () {
-      dependencies.argOne.members.should.contain('nestedProp');
-    });
+    describe('nesting', function () {
 
-    it('finds access of nested methods of each dependency', function () {
-      dependencies.argTwo.methods.should.contain('nestedFunc');
-    });
+      it('finds access of nested members of each dependency', function () {
+        usagesByDependency.argOne.members.should.include('nestedProp');
+      });
 
-    it('skips dependencies of nested method definitions', function () {
-      dependencies.should.not.have.keys('nestedArg');
-    });
+      it('finds access of nested methods of each dependency', function () {
+        usagesByDependency.argTwo.methods.should.include('nestedFunc');
+      });
 
-    it('skips methods when looking up members', function () {
-      dependencies.argTwo.members.should.not.contain('funcTwo');
-    });
-
-    it('skips members when looking up methods', function () {
-      dependencies.argOne.methods.should.not.contain('propOne');
+      it('skips dependencies of nested method definitions', function () {
+        usagesByDependency.should.not.have.keys('nestedArg');
+      });
     });
   });
 
