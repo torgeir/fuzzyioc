@@ -4,7 +4,7 @@ A "fuzzy" matching ioc container.
 
 ## The vision
 
-As suggested by @rinojohnsen;
+As suggested by [@rinojohnsen](http://twitter.com/rinojohnsen);
 
 An ioc container should "fuzzy" match dependencies to inject based on what members and method calls are used on the dependencies of a function.
 
