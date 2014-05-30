@@ -10,11 +10,11 @@ An ioc container should "fuzzy" match dependencies to inject based on what membe
 
 ## Installation
 
-npm install fuzzyioc
+`npm install fuzzyioc`
 
 ## Run tests
 
-npm test
+`npm test`
 
 ## Usage
 
@@ -42,8 +42,8 @@ function Messages () {
 
 ## Todo
 
-- Record number of arguments in function calls to a dependency, so we can match it with the number of arguments required by depencencies
-- Follow assignments to `this.something` inside a function, so that a we can track usage (of `this.something`) along the prototype as well
+- Record number of parameters to function calls of dependencies. Use this to better match agains registered types.
+- Follow assignments to `this` inside a function, so that a we can track usage (of `this.something`) along the prototype as well
 - Track usage on the prototype
 - Support singletons
 
