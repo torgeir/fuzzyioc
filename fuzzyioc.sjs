@@ -22,7 +22,7 @@ module.exports = function () {
 
     var dependencyNames = extractDependencyNamesFor(Type);
 
-    var dependencyTypes = _.map(dependencyNames, name => {
+    var dependencyTypes = _.map(dependencyNames, (name) => {
       var firstSatisfyingDependency  = satisfyingTypesPerDependency[name][0]
       if (firstSatisfyingDependency) {
         return firstSatisfyingDependency;
@@ -35,7 +35,7 @@ module.exports = function () {
                       'Members accessed: ' + JSON.stringify(dependencyUsage.members) + "\n");
     });
 
-    var dependencyInstances = _.map(dependencyTypes, Dependency => fuzzyioc(Dependency));
+    var dependencyInstances = _.map(dependencyTypes, (Dependency) => fuzzyioc(Dependency));
 
     return newInstance(Type, dependencyInstances);
   }
@@ -43,19 +43,19 @@ module.exports = function () {
   /**
    * Registers a Type.
    */
-  fuzzyioc.register = Type => {
+  fuzzyioc.register = (Type) => {
     types.push(Type);
 
     var properties = parseProperties(Type);
 
     // index types by members
-    _.each(properties.members, member => {
+    _.each(properties.members, (member) => {
       var members = typesByProperty.members[member] = (typesByProperty.members[member] || []);
       members.push(Type);
     });
 
     // index types by methods
-    _.each(properties.methods, method => {
+    _.each(properties.methods, (method) => {
       var methods = typesByProperty.methods[method] = (typesByProperty.methods[method] || []);
       methods.push(Type);
     });
@@ -65,7 +65,7 @@ module.exports = function () {
   /**
    * Finds member access and method calls (usages) for a given Type.
    */
-  fuzzyioc.parseUsages = Type => {
+  fuzzyioc.parseUsages = (Type) => {
 
     var dependencies = {};
 
@@ -84,7 +84,7 @@ module.exports = function () {
       // aliased dependencies
       else {
         var dependencyNames = Object.keys(dependencies);
-        return _.any(dependencyNames, name => {
+        return _.any(dependencyNames, (name) => {
           return dependencies[name].aliases.indexOf(dep) != -1;
         });
       }
@@ -92,7 +92,7 @@ module.exports = function () {
 
     function getAliasedDependency (alias) {
       var dependencyNames = Object.keys(dependencies);
-      return _.where(dependencyNames, name => {
+      return _.where(dependencyNames, (name) => {
         return dependencies[name].aliases.indexOf(alias) != -1;
       });
     }
@@ -101,7 +101,7 @@ module.exports = function () {
 
     var nodes = parseNodes(Type);
 
-    _.each(nodes, node => {
+    _.each(nodes, (node) => {
 
       if (node.type == "MemberExpression") {
         var dependencyNames = Object.keys(dependencies);
@@ -110,7 +110,7 @@ module.exports = function () {
         var object = node.object;
         var property = node.property;
 
-        var isObjectIdentifier = (object && object.type == 'Identifier');
+        var isObjectIdentifier = object && object.type == 'Identifier';
 
         var isObjectThisExpression = (object && object.type == 'ThisExpression');
         var isPropertyIdentifier = (property && property.type == 'Identifier');
@@ -145,7 +145,7 @@ module.exports = function () {
     });
 
     // 2nd pass
-    _.each(nodes, node => {
+    _.each(nodes, (node) => {
 
       if (node.type == "MemberExpression") {
         var dependencyNames = Object.keys(dependencies);
@@ -189,7 +189,7 @@ module.exports = function () {
   function satisfyUsages (usages) {
 
     var satisfiersPerDependency = {};
-    _.each(Object.keys(usages), dependency => {
+    _.each(Object.keys(usages), (dependency) => {
       satisfiersPerDependency[dependency] = [];
     });
 
@@ -199,17 +199,17 @@ module.exports = function () {
       var methods = usages[dependency].methods;
       var members = usages[dependency].members;
 
-      var methodSatisfiers = _.flatten(_.map(methods, method => {
+      var methodSatisfiers = _.flatten(_.map(methods, (method) => {
         return typesByProperty.methods[method];
       }));
 
-      var memberSatisfiers = _.flatten(_.map(members, member => {
+      var memberSatisfiers = _.flatten(_.map(members, (member) => {
         return typesByProperty.members[member];
       }));
 
       // find dependencies that satifisfy both methods and members
       if (methods.length && members.length) {
-        _.each(methodSatisfiers, methodSatisfier => {
+        _.each(methodSatisfiers, (methodSatisfier) => {
           if (memberSatisfiers.indexOf(methodSatisfier) != -1) {
             satisfierForDependency.push(methodSatisfier);
           }
@@ -217,11 +217,11 @@ module.exports = function () {
       }
       // find dependencies that satisfy methods
       else if (methods.length) {
-        _.each(methodSatisfiers, methodSatisfier => satisfierForDependency.push(methodSatisfier));
+        _.each(methodSatisfiers, (methodSatisfier) => satisfierForDependency.push(methodSatisfier));
       }
       // find dependencies that satisfy members
       else if (members.length) {
-        _.each(memberSatisfiers, memberSatisfier => satisfierForDependency.push(memberSatisfier));
+        _.each(memberSatisfiers, (memberSatisfier) => satisfierForDependency.push(memberSatisfier));
       }
 
       if (!satisfierForDependency.length) {
@@ -246,7 +246,7 @@ function parseProperties (Type) {
   var members = [],
       methods = [];
 
-  walkAst(Type, node => {
+  walkAst(Type, (node) => {
 
     var object = node.object;
     var parent = node.parent;
@@ -272,7 +272,7 @@ function parseProperties (Type) {
     }
   });
 
-  return { members, methods };
+  return { members: members, methods: methods };
 };
 
 
@@ -289,7 +289,7 @@ function extractDependencyNamesFor (Type) {
 
       // falltrough
       case 'FunctionDeclaration':
-         return _.map(node.params, param => param.name);
+         return _.map(node.params, (param) => param.name);
     }
   }
 
@@ -302,7 +302,7 @@ function extractDependencyNamesFor (Type) {
   */
 function parseNodes (stringOrType) {
   var nodes = [];
-  walkAst(stringOrType, node => nodes.push(node));
+  walkAst(stringOrType, (node) => nodes.push(node));
   return nodes.reverse();
 };
 
