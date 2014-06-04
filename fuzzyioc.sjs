@@ -110,10 +110,10 @@ module.exports = function () {
         var object = node.object;
         var property = node.property;
 
-        var isObjectIdentifier = object && object.type == 'Identifier';
+        var isObjectIdentifier = (object?.type == 'Identifier');
 
-        var isObjectThisExpression = (object && object.type == 'ThisExpression');
-        var isPropertyIdentifier = (property && property.type == 'Identifier');
+        var isObjectThisExpression = (object?.type == 'ThisExpression');
+        var isPropertyIdentifier = (property?.type == 'Identifier');
 
         // handle function local use of the dependency
         if (isObjectIdentifier) {
@@ -123,7 +123,7 @@ module.exports = function () {
           }
 
           var propertyOrFunctionName = node.property.name;
-          var isParentCallExpression = (parent && parent.type == 'CallExpression');
+          var isParentCallExpression = (parent?.type == 'CallExpression');
           if (isParentCallExpression) {
             dependencies[name].methods.push(propertyOrFunctionName);
           }
@@ -133,8 +133,8 @@ module.exports = function () {
         }
         else if (isObjectThisExpression && isPropertyIdentifier) {
 
-          var isParentAssignmentExpression = (parent && parent.type == 'AssignmentExpression');
-          var isParentRightIdentifier = (parent && parent.right && parent.right.type == 'Identifier');
+          var isParentAssignmentExpression = (parent?.type == 'AssignmentExpression');
+          var isParentRightIdentifier = (parent?.right?.type == 'Identifier');
           if (isParentAssignmentExpression && isParentRightIdentifier) {
             var assignedDependency = parent.right.name;
             var aliasDependency = node.property.name;
@@ -154,10 +154,10 @@ module.exports = function () {
         var object = node.object;
         var property = node.property;
 
-        var isParentMemberExpression = (parent && parent.type == 'MemberExpression');
-        var isParentPropertyIdentifier = (parent && parent.property && parent.property.type == 'Identifier');
+        var isParentMemberExpression = (parent?.type == 'MemberExpression');
+        var isParentPropertyIdentifier = (parent?.property?.type == 'Identifier');
 
-        var isParentParentCallExpression = (parent && parent.parent && parent.parent.type == 'CallExpression');
+        var isParentParentCallExpression = (parent?.parent?.type == 'CallExpression');
 
         // handle calls to `this.dependency.someMethod()`
         if (isParentMemberExpression && isParentPropertyIdentifier) {
@@ -253,8 +253,8 @@ function parseProperties (Type) {
 
     if (node.type == 'MemberExpression') {
 
-      var isThisExpression = (object.type == 'ThisExpression');
-      var isParentAssignmentExpression = (parent && parent.type == 'AssignmentExpression');
+      var isThisExpression = (object?.type == 'ThisExpression');
+      var isParentAssignmentExpression = (parent?.type == 'AssignmentExpression');
 
       if (isThisExpression && isParentAssignmentExpression) {
 
