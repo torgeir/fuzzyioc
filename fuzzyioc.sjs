@@ -326,13 +326,15 @@ function asSourceString (input) {
 
   if (typeof input == 'function') {
     var source = input.toString();
-    var prototype = input.prototype;
 
-    for (var property in prototype) {
-      source += "%s.prototype.%s = %s;"
-                  .replace("%s", input.name)
-                  .replace("%s", property)
-                  .replace("%s", prototype[property].toString());
+    var proto = input;
+    while ((proto = proto.prototype) != null) {
+      for (var property in proto) {
+        source += "%s.prototype.%s = %s;"
+                    .replace("%s", input.name)
+                    .replace("%s", property)
+                    .replace("%s", proto[property].toString());
+      }
     }
     return source;
   }
@@ -344,8 +346,8 @@ function asSourceString (input) {
  */
 function newInstance (Klass, args) {
   function F () {}
-  F.prototype = Klass.prototype;
-  // TODO set constructor
+  F.prototype = Object.create(Klass.prototype);
+  F.prototype.constructor = F;
   var instance = new F();
   Klass.apply(instance, args);
   return instance;

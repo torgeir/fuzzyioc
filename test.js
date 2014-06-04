@@ -66,6 +66,26 @@ describe('fuzzy ioc', function () {
       var instance = ioc(SomeType);
       instance.instanceMethod().should.equal(42);
     });
+
+    it('supports nested prototypes', function () {
+      function Child (dep) {
+        this.dependency = dep;
+      };
+      Child.prototype = Object.create(Parent.prototype);
+
+      function Parent () { }
+      Parent.prototype.instanceMethod = function () {
+        return this.dependency.nestedPrototypeMethod();
+      }
+
+      ioc.register(function SatisfyingDependency() {
+        this.nestedPrototypeMethod = function () {
+          return 42;
+        }
+      });
+
+      ioc(Child).instanceMethod().should.equal(42);
+    });
   });
 
 
