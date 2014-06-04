@@ -225,7 +225,7 @@ module.exports = function () {
       }
 
       if (!satisfierForDependency.length) {
-        throw new Error('fuzzyioc: No registered types satisify the usage of your type' +
+        throw new Error('fuzzyioc: No registered types satisify the usage of your type ' +
                        'Methods called: ' + JSON.stringify(methods) + "\n" +
                        'Members accessed: ' + JSON.stringify(members) + "\n");
       }
@@ -269,10 +269,32 @@ function parseProperties (Type) {
           members.push(name);
         }
       }
+      else {
+
+        var parent = node.parent;
+        var object = node.object;
+        var property = node.property;
+
+        var isParentMemberExpression = (parent?.type == 'MemberExpression');
+        var isParentPropertyIdentifier = (parent?.property?.type == 'Identifier');
+
+        var isParentParentAssignmentExpression = (parent?.parent?.type == 'AssignmentExpression');
+
+        if (isParentMemberExpression && isParentPropertyIdentifier && isParentParentAssignmentExpression) {
+          var name = parent.property.name;
+          if (node.parent.parent.right.type === 'FunctionExpression') {
+            methods.push(name);
+          }
+          else {
+            members.push(name);
+          }
+        }
+      }
     }
   });
 
-  return { members: members, methods: methods };
+  var properties = { members: members, methods: methods };
+  return properties;
 };
 
 

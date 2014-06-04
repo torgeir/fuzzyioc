@@ -40,9 +40,7 @@ describe('fuzzy ioc', function () {
       ioc.register(UserRepo);
       ioc.register(UserService);
 
-      var userController = ioc(UserController);
-
-      userController.listUsers().should.contain('alice', 'bob');
+      ioc(UserController).listUsers().should.contain('alice', 'bob');
     });
 
     it('looks up aliased properties (through `this`) that are used on the prototype', function () {
@@ -63,11 +61,10 @@ describe('fuzzy ioc', function () {
 
       ioc.register(SomeOtherType);
 
-      var instance = ioc(SomeType);
-      instance.instanceMethod().should.equal(42);
+      ioc(SomeType).instanceMethod().should.equal(42);
     });
 
-    it('supports nested prototypes', function () {
+    it('supports registering types with properties defined on the prototype', function () {
       function Child (dep) {
         this.dependency = dep;
       };
@@ -75,14 +72,18 @@ describe('fuzzy ioc', function () {
 
       function Parent () { }
       Parent.prototype.instanceMethod = function () {
+        var a = this.dependency.nestedPrototypeMember;
         return this.dependency.nestedPrototypeMethod();
-      }
+      };
 
-      ioc.register(function SatisfyingDependency() {
-        this.nestedPrototypeMethod = function () {
-          return 42;
-        }
-      });
+      function SatisfyingDependency () { }
+      SatisfyingDependency.prototype = Object.create(SatisfyingParentDependency.prototype);
+
+      function SatisfyingParentDependency () { }
+      SatisfyingParentDependency.prototype.nestedPrototypeMethod = function () { return 42; };
+      SatisfyingParentDependency.prototype.nestedPrototypeMember = 666;
+
+      ioc.register(SatisfyingDependency);
 
       ioc(Child).instanceMethod().should.equal(42);
     });
